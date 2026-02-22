@@ -1,4 +1,9 @@
+import logging
+
 from swarm import Agent
+from swarm.types import Result
+
+logger = logging.getLogger(__name__)
 
 
 def save_meal(
@@ -9,7 +14,7 @@ def save_meal(
     total_carbs: float,
     total_sugar: float,
     notes: str = "",
-) -> str:
+) -> Result:
     """Save the analyzed meal to the database.
 
     Args:
@@ -22,34 +27,47 @@ def save_meal(
         total_sugar: Total sugar in grams for the entire meal
         notes: Optional notes about the meal
     """
-    phone = context_variables.get("phone_number")
-    media_id = context_variables.get("media_id")
-    user = context_variables["get_or_create_user"](phone)
+    try:
+        phone = context_variables.get("phone_number")
+        media_id = context_variables.get("media_id")
+        user = context_variables["get_or_create_user"](phone)
 
-    context_variables["log_meal"](
-        user_id=user["id"],
-        food_items=food_items_json,
-        total_calories=total_calories,
-        image_id=media_id,
-        notes=notes,
-        protein_g=total_protein,
-        carbs_g=total_carbs,
-        sugar_g=total_sugar,
-    )
+        context_variables["log_meal"](
+            user_id=user["id"],
+            food_items=food_items_json,
+            total_calories=total_calories,
+            image_id=media_id,
+            notes=notes,
+            protein_g=total_protein,
+            carbs_g=total_carbs,
+            sugar_g=total_sugar,
+        )
 
-    # Get running daily totals to include in the response
-    daily = context_variables["get_user_today_macros"](user["id"])
-    goal = user["daily_goal"]
-    remaining = goal - daily["total_calories"]
+        # Get running daily totals to include in the response
+        daily = context_variables["get_user_today_macros"](user["id"])
+        goal = user["daily_goal"]
+        remaining = goal - daily["total_calories"]
 
-    return (
-        f"Meal logged: {total_calories} cal | "
-        f"Protein: {total_protein}g | Carbs: {total_carbs}g | Sugar: {total_sugar}g\n"
-        f"Daily totals: {daily['total_calories']}/{goal} cal "
-        f"(Remaining: {remaining}) | "
-        f"Protein: {daily['total_protein']}g | "
-        f"Carbs: {daily['total_carbs']}g | Sugar: {daily['total_sugar']}g"
-    )
+        value = (
+            f"Meal logged: {total_calories} cal | "
+            f"Protein: {total_protein}g | Carbs: {total_carbs}g | Sugar: {total_sugar}g\n"
+            f"Daily totals: {daily['total_calories']}/{goal} cal "
+            f"(Remaining: {remaining}) | "
+            f"Protein: {daily['total_protein']}g | "
+            f"Carbs: {daily['total_carbs']}g | Sugar: {daily['total_sugar']}g"
+        )
+
+        return Result(value=value, agent=context_variables["chat_agent"])
+
+    except Exception as e:
+        logger.error(f"Failed to save meal: {e}", exc_info=True)
+        return Result(
+            value=(
+                f"ERROR: Failed to save meal to database: {e}. "
+                f"Tell the user the meal could not be saved and ask them to try again."
+            ),
+            agent=context_variables["chat_agent"],
+        )
 
 
 def transfer_back_to_chat(context_variables: dict):
@@ -60,6 +78,7 @@ def transfer_back_to_chat(context_variables: dict):
 food_analysis_agent = Agent(
     name="Food Analysis Agent",
     model="gpt-4o",
+    tool_choice="required",
     instructions="""You are a food analysis specialist. You will receive an image of food.
 
 Your process:
@@ -85,9 +104,9 @@ Your process:
    - Show the meal total
    - Show the daily running total (from the save_meal result)
    - Add a brief healthiness comment
-7. After responding, call transfer_back_to_chat so future messages go to the Chat Agent.
+7. After save_meal completes, control automatically returns to the Chat Agent.
 
-If the image is unclear or not food, say so and transfer back to chat.
+If the image is unclear or not food, say so and call transfer_back_to_chat.
 Keep your response concise for chat formatting.""",
     functions=[save_meal, transfer_back_to_chat],
 )

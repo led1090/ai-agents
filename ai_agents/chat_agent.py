@@ -89,6 +89,34 @@ def delete_last_meal(context_variables: dict) -> str:
     return f"Deleted last meal ({calories} calories)."
 
 
+def get_meals_today(context_variables: dict) -> str:
+    """Get a detailed list of all meals logged today, with individual items and macros."""
+    phone = context_variables.get("phone_number")
+    user = context_variables["get_or_create_user"](phone)
+    meals = context_variables["get_user_meals_today"](user["id"])
+
+    if not meals:
+        return "No meals logged today yet."
+
+    daily = context_variables["get_user_today_macros"](user["id"])
+    goal = user["daily_goal"]
+    remaining = goal - daily["total_calories"]
+
+    meal_lines = []
+    for i, m in enumerate(meals, 1):
+        meal_lines.append(
+            f"{i}. {m['food_items']} - {m['total_calories']} cal "
+            f"(P:{m.get('protein_g', 0)}g C:{m.get('carbs_g', 0)}g S:{m.get('sugar_g', 0)}g)"
+        )
+
+    return (
+        f"Today's meals ({len(meals)}):\n"
+        + "\n".join(meal_lines)
+        + f"\n\nDaily total: {daily['total_calories']}/{goal} cal (Remaining: {remaining})\n"
+        f"Protein: {daily['total_protein']}g | Carbs: {daily['total_carbs']}g | Sugar: {daily['total_sugar']}g"
+    )
+
+
 chat_agent = Agent(
     name="Chat Agent",
     model="gpt-4o",
@@ -99,17 +127,19 @@ Your responsibilities:
 2. If the user sends a food photo (you will see it as an image in the conversation),
    IMMEDIATELY call transfer_to_food_analysis to hand off to the specialist.
 3. If the user asks about their calorie status today, call get_calorie_status.
-4. If the user wants to set a daily calorie goal, call set_daily_goal.
-5. If the user says they only ate a portion of their last meal (e.g. "I only had half",
+4. If the user asks what they have eaten today or wants a list of meals, call get_meals_today.
+5. If the user wants to set a daily calorie goal, call set_daily_goal.
+6. If the user says they only ate a portion of their last meal (e.g. "I only had half",
    "I ate about 75%", "I only had a third"), call update_last_meal with the appropriate
    fraction (0.5 for half, 0.75 for three-quarters, 0.33 for a third, etc.).
-6. If the user wants to remove/undo their last logged meal, call delete_last_meal.
-7. For general health questions, provide brief helpful advice.
-8. Keep responses concise -- this is a chat message, not an essay.
+7. If the user wants to remove/undo their last logged meal, call delete_last_meal.
+8. For general health questions, provide brief helpful advice.
+9. Keep responses concise -- this is a chat message, not an essay.
 
 You do NOT analyze food photos yourself. Always hand off to Food Analysis for that.""",
     functions=[
         get_calorie_status,
+        get_meals_today,
         transfer_to_food_analysis,
         set_daily_goal,
         update_last_meal,
