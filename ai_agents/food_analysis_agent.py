@@ -13,6 +13,7 @@ def save_meal(
     total_protein: float,
     total_carbs: float,
     total_sugar: float,
+    health_rating: int = 5,
     notes: str = "",
 ) -> Result:
     """Save the analyzed meal to the database.
@@ -25,6 +26,7 @@ def save_meal(
         total_protein: Total protein in grams for the entire meal
         total_carbs: Total carbohydrates in grams for the entire meal
         total_sugar: Total sugar in grams for the entire meal
+        health_rating: Health rating 1-10 (1=very unhealthy, 10=very healthy)
         notes: Optional notes about the meal
     """
     try:
@@ -41,16 +43,19 @@ def save_meal(
             protein_g=total_protein,
             carbs_g=total_carbs,
             sugar_g=total_sugar,
+            health_rating=health_rating,
         )
 
         # Get running daily totals to include in the response
         daily = context_variables["get_user_today_macros"](user["id"])
-        goal = user["daily_goal"]
+        limit_data = context_variables["compute_daily_calorie_limit"](user["id"])
+        goal = limit_data["daily_limit"]
         remaining = goal - daily["total_calories"]
 
         value = (
             f"Meal logged: {total_calories} cal | "
-            f"Protein: {total_protein}g | Carbs: {total_carbs}g | Sugar: {total_sugar}g\n"
+            f"Protein: {total_protein}g | Carbs: {total_carbs}g | Sugar: {total_sugar}g | "
+            f"Health: {health_rating}/10\n"
             f"Daily totals: {daily['total_calories']}/{goal} cal "
             f"(Remaining: {remaining}) | "
             f"Protein: {daily['total_protein']}g | "
@@ -91,20 +96,28 @@ Your process:
    - Carbohydrates in grams
    - Sugar in grams
    If portion size is ambiguous, estimate based on typical restaurant/home serving.
-5. Call save_meal with:
+5. Rate the overall meal healthiness on a 1-10 scale:
+   - 1-3: Very unhealthy (deep fried, high sugar, processed)
+   - 4-5: Below average (some redeeming qualities but mostly unhealthy)
+   - 6-7: Average to good (balanced, reasonable portions)
+   - 8-9: Very healthy (lean protein, vegetables, whole grains)
+   - 10: Exceptionally healthy (nutrient-dense, perfect balance)
+6. Call save_meal with:
    - food_items_json: a JSON array of objects, each with "name", "quantity", "calories",
      "protein_g", "carbs_g", "sugar_g"
    - total_calories: the sum of all item calories
    - total_protein: the sum of all item protein_g
    - total_carbs: the sum of all item carbs_g
    - total_sugar: the sum of all item sugar_g
+   - health_rating: the 1-10 rating
    - notes: a brief description of the meal
-6. Then respond to the user with a formatted breakdown:
-   - List each item with its estimated calories and macros (protein/carbs/sugar)
-   - Show the meal total
-   - Show the daily running total (from the save_meal result)
-   - Add a brief healthiness comment
-7. After save_meal completes, control automatically returns to the Chat Agent.
+7. Then respond to the user in this exact format:
+   - A brief 1-sentence commentary about the meal (what it is, notable qualities)
+   - Each item: "• Item (qty) — XXX cal  P:Xg C:Xg S:Xg"
+   - Total line: "Total: XXX cal | P:Xg C:Xg S:Xg"
+   - Health rating WITH a 1-sentence justification: "Health: X/10 — [reason]"
+   - Daily running total from save_meal result: "Daily: XXX/XXX cal (XXX remaining)  P:Xg | C:Xg | S:Xg"
+8. After save_meal completes, control automatically returns to the Chat Agent.
 
 If the image is unclear or not food, say so and call transfer_back_to_chat.
 Keep your response concise for chat formatting.""",
