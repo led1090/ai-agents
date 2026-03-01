@@ -251,6 +251,37 @@ def set_weight_goal_fn(
     )
 
 
+def update_profile(
+    context_variables: dict,
+    dietary_preferences: str = None,
+    timezone: str = None,
+) -> str:
+    """Update the user's profile preferences.
+
+    Args:
+        dietary_preferences: Free-text dietary preferences/restrictions
+            (e.g. "vegetarian, allergic to nuts, lactose intolerant")
+        timezone: IANA timezone string (e.g. "UTC", "Europe/London", "Asia/Riyadh")
+    """
+    phone = context_variables.get("phone_number")
+    user = context_variables["get_or_create_user"](phone)
+
+    fields = {}
+    if dietary_preferences is not None:
+        fields["dietary_preferences"] = dietary_preferences
+    if timezone is not None:
+        fields["timezone"] = timezone
+
+    updated = context_variables["update_user_profile"](user["id"], **fields)
+
+    parts = []
+    if dietary_preferences is not None:
+        parts.append(f"Dietary preferences: {dietary_preferences}")
+    if timezone is not None:
+        parts.append(f"Timezone: {timezone}")
+    return "Profile updated! " + " | ".join(parts)
+
+
 def get_monthly_report(context_variables: dict, month: int = None, year: int = None) -> str:
     """Get a monthly nutrition report.
 
@@ -317,6 +348,11 @@ Your responsibilities:
 13. If the user asks for a monthly report or monthly summary, call get_monthly_report.
 14. If the user asks about their weight goal or calorie limit, call get_calorie_status
     which includes weight goal information.
+15. Use the user's first name from `context_variables['user_profile']` when greeting or in daily summaries.
+16. If the user mentions dietary preferences or restrictions (e.g., 'I'm vegetarian',
+    'I'm allergic to nuts', 'I don't eat pork'), call update_profile to save them.
+17. Consider the user's dietary_preferences from `context_variables['user_profile']`
+    when analyzing text meals — flag if a described meal conflicts with their stated preferences.
 
 You do NOT analyze food photos yourself. Always hand off to Food Analysis for that.""",
     functions=[
@@ -330,5 +366,6 @@ You do NOT analyze food photos yourself. Always hand off to Food Analysis for th
         record_weight,
         set_weight_goal_fn,
         get_monthly_report,
+        update_profile,
     ],
 )

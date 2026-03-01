@@ -74,6 +74,8 @@ summary_agent = Agent(
     model="gpt-4o-mini",
     instructions="""You generate end-of-day calorie summary reports.
 
+Address the user by their first name from `context_variables['user_profile']` if available.
+
 When asked to generate a summary, first call get_daily_data to retrieve comprehensive data.
 Then create a Telegram-friendly summary covering:
 

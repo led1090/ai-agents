@@ -119,6 +119,10 @@ Your process:
    - Daily running total from save_meal result: "Daily: XXX/XXX cal (XXX remaining)  P:Xg | C:Xg | S:Xg"
 8. After save_meal completes, control automatically returns to the Chat Agent.
 
+9. Check `context_variables['user_profile']['dietary_preferences']`. If the meal
+   conflicts with stated preferences (e.g., meat for a vegetarian, nuts for someone
+   with nut allergy), mention this prominently in your response as a warning.
+
 If the image is unclear or not food, say so and call transfer_back_to_chat.
 Keep your response concise for chat formatting.""",
     functions=[save_meal, transfer_back_to_chat],
